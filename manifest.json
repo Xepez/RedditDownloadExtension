@@ -1,0 +1,23 @@
+{
+  "manifest_version": 2,
+  "name": "Reddit Download Button",
+  "version": "1.0",
+  "description": "Adds a download button to Reddit posts for personal use.",
+  "icons": {
+    "48": "icons/download.png"
+  },
+  "permissions": [
+    "downloads",
+    "activeTab"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://old.reddit.com/*"],
+      "js": ["content.js"]
+    }
+  ]
+}
