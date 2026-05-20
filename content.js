@@ -47,14 +47,6 @@ function addDownloadButtonToPost(post) {
         }
     }
 
-    // 3. Video
-    if (!mediaLink) {
-        const video = post.querySelector('video');
-        if (video?.src || video?.currentSrc) {
-            mediaLink = video.src || video.currentSrc;
-        }
-    }
-
     if (!mediaLink) return;
 
     const entry = post.querySelector('.entry');
@@ -183,6 +175,69 @@ function addDownloadButtonToGallery(post) {
 
     entry.appendChild(btn);
 }
+
+// -----------------------------
+// Handle video posts
+// -----------------------------
+function addDownloadButtonToVideo(post) {
+    // Prevent duplicate button
+    if (post.querySelector('.my-video-download-btn')) {
+        return;
+    }
+
+    const titleLink = post.querySelector('a.title');
+    if (!titleLink?.href || !titleLink?.href.includes("v.redd.it")) return;
+
+    const postUrl = titleLink.href;
+
+    const btn = document.createElement('button');
+    btn.innerText = 'Download Video';
+    btn.className = 'my-video-download-btn';
+
+    btn.style.margin = '5px';
+    btn.style.padding = '2px 5px';
+    btn.style.fontSize = '11px';
+    btn.style.cursor = 'pointer';
+
+    btn.onclick = async () => {
+        try {
+            const jsonUrl =
+                postUrl.replace(/\/$/, '') + '.json';
+
+            const response = await fetch(jsonUrl);
+            const data = await response.json();
+
+            const postData =
+                data?.[0]?.data?.children?.[0]?.data;
+
+            // Reddit hosted video
+            const redditVideo =
+                postData?.media?.reddit_video;
+
+            if (!redditVideo?.fallback_url) {
+                console.log('No Reddit video found');
+                return;
+            }
+
+            chrome.runtime.sendMessage({
+                action: 'download',
+                url: redditVideo.fallback_url
+            });
+
+        } catch (err) {
+            console.error(
+                'Video download failed:',
+                err
+            );
+        }
+    };
+
+    const entry = post.querySelector('.entry');
+    if (!entry) return;
+
+    entry.appendChild(btn);
+}
+
 // -----------------------------
 // Process everything
 // -----------------------------
@@ -194,6 +249,7 @@ function processPage() {
     posts.forEach((post) => {
         addDownloadButtonToPost(post);
         addDownloadButtonToGallery(post);
+        addDownloadButtonToVideo(post);
     });
 
     // Comments
