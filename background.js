@@ -238,6 +238,123 @@ async function mergeAndDownload(
 }
 
 // -----------------------------
+// Redgif Downloader
+// -----------------------------
+async function downloadRedgifs(pageUrl) {
+    try {
+        console.log(
+            'Fetching Redgifs:',
+            pageUrl
+        );
+
+        // Parse gif id
+        const match =
+            pageUrl.match(
+                /\/watch\/([^/?#]+)/i
+            );
+
+        if (!match) {
+            throw new Error(
+                'Could not parse Redgifs id'
+            );
+        }
+
+        const gifId = match[1];
+
+        console.log(
+            'Gif id:',
+            gifId
+        );
+
+        // ----------------------------------
+        // Get guest token
+        // ----------------------------------
+        const authResponse =
+            await fetch(
+                'https://api.redgifs.com/v2/auth/temporary',
+                {
+                    method: 'GET'
+                }
+            );
+
+        if (!authResponse.ok) {
+            throw new Error(
+                `Token request failed: HTTP ${authResponse.status}`
+            );
+        }
+
+        const authData =
+            await authResponse.json();
+
+        const token =
+            authData?.token;
+
+        if (!token) {
+            throw new Error(
+                'No Redgifs token returned'
+            );
+        }
+
+        console.log(
+            'Got temporary token'
+        );
+
+        // ----------------------------------
+        // Fetch gif metadata
+        // ----------------------------------
+        const response =
+            await fetch(
+                `https://api.redgifs.com/v2/gifs/${gifId}`,
+                {
+                    headers: {
+                        Authorization:
+                            `Bearer ${token}`
+                    }
+                }
+            );
+
+        if (!response.ok) {
+            throw new Error(
+                `Gif request failed: HTTP ${response.status}`
+            );
+        }
+
+        const data =
+            await response.json();
+
+        const urls =
+            data?.gif?.urls;
+
+        const videoUrl =
+            urls?.hd ||
+            urls?.sd;
+
+        if (!videoUrl) {
+            throw new Error(
+                'No downloadable video URL found'
+            );
+        }
+
+        console.log(
+            'Downloading:',
+            videoUrl
+        );
+
+        await browser.downloads.download({
+            url: videoUrl,
+            filename:
+                `${gifId}.mp4`
+        });
+
+    } catch (err) {
+        console.error(
+            'Redgifs failed:',
+            err
+        );
+    }
+}
+
+// -----------------------------
 // Message listener
 // -----------------------------
 browser.runtime.onMessage.addListener(
@@ -248,10 +365,7 @@ browser.runtime.onMessage.addListener(
 
 async function handleMessage(message) {
     // Regular download
-    if (
-        message.action ===
-        'download'
-    ) {
+    if (message.action === 'download') {
         const url = message.url;
 
         const filename =
@@ -267,10 +381,7 @@ async function handleMessage(message) {
     }
 
     // Reddit video merge
-    if (
-        message.action ===
-        'downloadVideoWithAudio'
-    ) {
+    if (message.action === 'downloadVideoWithAudio') {
         try {
             await mergeAndDownload(
                 message.videoUrl,
@@ -282,5 +393,10 @@ async function handleMessage(message) {
                 err
             );
         }
+    }
+
+    // Red gif download
+    if (message.action === 'downloadRedgifs') {
+        downloadRedgifs(message.pageUrl);
     }
 }

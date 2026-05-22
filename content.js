@@ -176,9 +176,6 @@ function addDownloadButtonToGallery(post) {
 // -----------------------------
 // Handle video posts
 // -----------------------------
-// -----------------------------
-// Handle video posts
-// -----------------------------
 function addDownloadButtonToVideo(post) {
     // Prevent duplicate buttons
     if (post.querySelector('.my-video-download-btn')) {
@@ -290,22 +287,69 @@ function addDownloadButtonToVideo(post) {
             ];
 
             browser.runtime.sendMessage({
-                action:
-                    'downloadVideoWithAudio',
+                action: 'downloadVideoWithAudio',
                 videoUrl,
                 audioCandidates
             });
 
         } catch (err) {
-            console.error(
-                'Video download failed:',
-                err
-            );
+            console.error('Video download failed:', err);
         }
     };
 
-    const entry =
-        post.querySelector('.entry');
+    const entry = post.querySelector('.entry');
+
+    if (entry) {
+        entry.appendChild(btn);
+    }
+}
+
+// -----------------------------
+// Handle Redgifs posts
+// -----------------------------
+function addDownloadButtonToRedgifs(post) {
+    // Prevent duplicate buttons
+    if (post.querySelector('.my-redgifs-download-btn')) {
+        return;
+    }
+
+    const titleLink = post.querySelector('a.title');
+
+    if (!titleLink?.href) {
+        return;
+    }
+
+    const href = titleLink.href.toLowerCase();
+
+    const isRedgifs = href.includes('redgifs.com');
+
+    if (!isRedgifs) {
+        return;
+    }
+
+    const btn = document.createElement('button');
+    btn.innerText = 'Download Redgifs';
+    btn.className = 'my-redgifs-download-btn';
+    btn.style.margin = '5px';
+    btn.style.padding = '2px 5px';
+    btn.style.fontSize = '11px';
+    btn.style.cursor = 'pointer';
+
+    btn.onclick = async () => {
+        try {
+            console.log('Sending Redgifs download:', titleLink.href);
+
+            browser.runtime.sendMessage({
+                action: 'downloadRedgifs',
+                pageUrl: titleLink.href
+            });
+
+        } catch (err) {
+            console.error('Redgifs download failed:', err);
+        }
+    };
+
+    const entry = post.querySelector('.entry');
 
     if (entry) {
         entry.appendChild(btn);
@@ -324,6 +368,7 @@ function processPage() {
         addDownloadButtonToPost(post);
         addDownloadButtonToGallery(post);
         addDownloadButtonToVideo(post);
+        addDownloadButtonToRedgifs(post);
     });
 
     // Comments
