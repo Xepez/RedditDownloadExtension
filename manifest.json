@@ -11,7 +11,10 @@
     "activeTab"
   ],
   "background": {
-    "scripts": ["background.js"],
+    "scripts": [
+      "vendor/ffmpeg/ffmpeg.js",
+      "background.js"
+    ],
     "persistent": false
   },
   "content_scripts": [
@@ -19,5 +22,9 @@
       "matches": ["*://www.reddit.com/*"],
       "js": ["content.js"]
     }
+  ],
+  "web_accessible_resources": [
+    "vendor/ffmpeg/ffmpeg-core.js",
+    "vendor/ffmpeg/ffmpeg-core.wasm"
   ]
 }

@@ -5,7 +5,6 @@ function createDownloadButton(url) {
     const btn = document.createElement('button');
     btn.innerText = 'Download';
     btn.className = 'my-download-btn';
-
     btn.style.margin = '5px';
     btn.style.padding = '2px 5px';
     btn.style.fontSize = '11px';
@@ -82,7 +81,6 @@ function addDownloadButtonsToComment(comment) {
         const btn = document.createElement('button');
         btn.innerText = 'Download';
         btn.className = 'my-download-btn';
-
         btn.style.marginLeft = '6px';
         btn.style.fontSize = '11px';
         btn.style.cursor = 'pointer';
@@ -116,7 +114,6 @@ function addDownloadButtonToGallery(post) {
     const btn = document.createElement('button');
     btn.innerText = 'Download Gallery';
     btn.className = 'my-gallery-download-btn';
-
     btn.style.margin = '5px';
     btn.style.padding = '2px 5px';
     btn.style.fontSize = '11px';
@@ -179,20 +176,47 @@ function addDownloadButtonToGallery(post) {
 // -----------------------------
 // Handle video posts
 // -----------------------------
+// -----------------------------
+// Handle video posts
+// -----------------------------
 function addDownloadButtonToVideo(post) {
-    // Prevent duplicate button
+    // Prevent duplicate buttons
     if (post.querySelector('.my-video-download-btn')) {
         return;
     }
 
-    const titleLink = post.querySelector('a.title');
-    if (!titleLink?.href || !titleLink?.href.includes("v.redd.it")) return;
+    const commentsLink =
+        post.querySelector('a.comments');
 
-    const postUrl = titleLink.href;
+    if (!commentsLink?.href) {
+        return;
+    }
 
-    const btn = document.createElement('button');
-    btn.innerText = 'Download Video';
-    btn.className = 'my-video-download-btn';
+    // Detect Reddit-hosted video post
+    const outgoingLink =
+        post.querySelector('a.title');
+
+    const videoTag =
+        post.querySelector('video');
+
+    const isRedditVideo =
+        outgoingLink?.href?.includes('v.redd.it') ||
+        post.dataset.domain === 'v.redd.it' ||
+        !!videoTag;
+
+    // Skip non-video posts
+    if (!isRedditVideo) {
+        return;
+    }
+
+    const btn =
+        document.createElement('button');
+
+    btn.innerText =
+        'Download Video';
+
+    btn.className =
+        'my-video-download-btn';
 
     btn.style.margin = '5px';
     btn.style.padding = '2px 5px';
@@ -202,26 +226,74 @@ function addDownloadButtonToVideo(post) {
     btn.onclick = async () => {
         try {
             const jsonUrl =
-                postUrl.replace(/\/$/, '') + '.json';
+                commentsLink.href.replace(
+                    /\/$/,
+                    ''
+                ) + '.json';
 
-            const response = await fetch(jsonUrl);
-            const data = await response.json();
+            const response =
+                await fetch(jsonUrl);
+
+            if (!response.ok) {
+                throw new Error(
+                    `HTTP ${response.status}`
+                );
+            }
+
+            const data =
+                await response.json();
 
             const postData =
-                data?.[0]?.data?.children?.[0]?.data;
+                data?.[0]
+                    ?.data
+                    ?.children?.[0]
+                    ?.data;
 
-            // Reddit hosted video
             const redditVideo =
-                postData?.media?.reddit_video;
+                postData?.media
+                    ?.reddit_video;
 
-            if (!redditVideo?.fallback_url) {
-                console.log('No Reddit video found');
+            if (
+                !redditVideo?.fallback_url
+            ) {
+                console.log(
+                    'No Reddit video found'
+                );
                 return;
             }
 
-            chrome.runtime.sendMessage({
-                action: 'download',
-                url: redditVideo.fallback_url
+            const videoUrl =
+                redditVideo.fallback_url;
+
+            const parsed =
+                new URL(videoUrl);
+
+            const baseUrl =
+                parsed.origin +
+                parsed.pathname.substring(
+                    0,
+                    parsed.pathname.lastIndexOf('/') + 1
+                );
+
+            const audioCandidates = [
+                // DASH
+                `${baseUrl}DASH_AUDIO_128.mp4`,
+                `${baseUrl}DASH_AUDIO.mp4`,
+                `${baseUrl}DASH_audio.mp4`,
+
+                // CMAF
+                `${baseUrl}CMAF_AUDIO_128.mp4`,
+                `${baseUrl}CMAF_AUDIO.mp4`,
+
+                // fallback
+                `${baseUrl}audio`
+            ];
+
+            browser.runtime.sendMessage({
+                action:
+                    'downloadVideoWithAudio',
+                videoUrl,
+                audioCandidates
             });
 
         } catch (err) {
@@ -232,10 +304,12 @@ function addDownloadButtonToVideo(post) {
         }
     };
 
-    const entry = post.querySelector('.entry');
-    if (!entry) return;
+    const entry =
+        post.querySelector('.entry');
 
-    entry.appendChild(btn);
+    if (entry) {
+        entry.appendChild(btn);
+    }
 }
 
 // -----------------------------
