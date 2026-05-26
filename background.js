@@ -78,10 +78,7 @@ async function loadFFmpeg() {
         ffmpegLoaded = true;
 
     } catch (err) {
-        console.error(
-            'ffmpeg.load() failed:',
-            err
-        );
+        console.error('ffmpeg.load() failed:', err);
         throw err;
     }
 }
@@ -112,127 +109,100 @@ async function mergeAndDownload(
 ) {
     await loadFFmpeg();
 
-    console.log(
-        'Fetching video...'
-    );
-
-    const videoData =
-        await fetchFile(videoUrl);
+    console.log('Fetching video...');
 
     let audioData = null;
     let selectedAudio = null;
 
     for (const candidate of audioCandidates) {
         try {
-            console.log(
-                'Trying audio:',
-                candidate
-            );
+            console.log('Trying audio:', candidate);
 
-            audioData =
-                await fetchFile(candidate);
+            audioData = await fetchFile(candidate);
 
-            selectedAudio =
-                candidate;
+            selectedAudio = candidate;
 
-            console.log(
-                'Audio success:',
-                candidate
-            );
+            console.log('Audio success:', candidate);
 
             break;
         } catch (err) {
-            console.warn(
-                'Audio failed:',
-                candidate
-            );
+            console.warn('Audio failed:', candidate);
         }
     }
 
     if (!audioData) {
-        throw new Error(
-            'No working audio stream found'
-        );
+        console.log('No working audio stream found');
+
+        const downloadId =
+            await browser.downloads.download({
+                url: videoUrl,
+                filename:`reddit_video_${Date.now()}.mp4`,
+                saveAs: false
+            });
     }
+    else {
+        const videoData = await fetchFile(videoUrl);
 
-    console.log('Writing files...');
+        console.log('Writing files...');
 
-    await ffmpeg.writeFile(
-        'video.mp4',
-        videoData
-    );
-
-    await ffmpeg.writeFile(
-        'audio.mp4',
-        audioData
-    );
-
-    console.log('Merging...');
-
-    await ffmpeg.exec([
-        '-i', 'video.mp4',
-        '-i', 'audio.mp4',
-
-        '-map', '0:v:0',
-        '-map', '1:a:0',
-
-        '-c:v', 'copy',
-        '-c:a', 'copy',
-
-        'output.mp4'
-    ]);
-
-    console.log('Reading merged file...');
-
-    const merged =
-        await ffmpeg.readFile(
-            'output.mp4'
+        await ffmpeg.writeFile(
+            'video.mp4',
+            videoData
         );
 
-    console.log(
-        'Merged bytes:',
-        merged.length
-    );
+        await ffmpeg.writeFile(
+            'audio.mp4',
+            audioData
+        );
 
-    const blob = new Blob(
-        [merged.buffer],
-        { type: 'video/mp4' }
-    );
+        console.log('Merging...');
 
-    const objectUrl =
-        URL.createObjectURL(blob);
+        await ffmpeg.exec([
+            '-i', 'video.mp4',
+            '-i', 'audio.mp4',
 
-    const downloadId =
-        await browser.downloads.download({
-            url: objectUrl,
-            filename:
-                `reddit_video_${Date.now()}.mp4`,
-            saveAs: false
-        });
+            '-map', '0:v:0',
+            '-map', '1:a:0',
 
-    console.log(
-        'Download started:',
-        downloadId
-    );
+            '-c:v', 'copy',
+            '-c:a', 'copy',
 
-    // Give Firefox time to consume blob URL
-    setTimeout(() => {
-        URL.revokeObjectURL(objectUrl);
-    }, 30000);
+            'output.mp4'
+        ]);
 
-    console.log('Cleaning up...');
+        console.log('Reading merged file...');
 
-    await ffmpeg.deleteFile(
-        'video.mp4'
-    );
+        const merged = await ffmpeg.readFile('output.mp4');
 
-    await ffmpeg.deleteFile(
-        'audio.mp4'
-    );
+        console.log('Merged bytes:', merged.length);
 
-    await ffmpeg.deleteFile(
-        'output.mp4'
-    );
+        const blob = new Blob(
+            [merged.buffer],
+            { type: 'video/mp4' }
+        );
+
+        const objectUrl = URL.createObjectURL(blob);
+
+        const downloadId =
+            await browser.downloads.download({
+                url: objectUrl,
+                filename:`reddit_video_${Date.now()}.mp4`,
+                saveAs: false
+            });
+
+        console.log('Download started:', downloadId);
+
+        // Give Firefox time to consume blob URL
+        setTimeout(() => {
+            URL.revokeObjectURL(objectUrl);
+        }, 30000);
+
+        console.log('Cleaning up...');
+
+        await ffmpeg.deleteFile('video.mp4');
+        await ffmpeg.deleteFile('audio.mp4');
+        await ffmpeg.deleteFile('output.mp4');
+    }
 
     console.log('Done');
 }
