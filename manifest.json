@@ -10,7 +10,9 @@
     "downloads",
     "activeTab",
     "https://api.redgifs.com/*",
-    "https://media.redgifs.com/*"
+    "https://media.redgifs.com/*",
+    "https://imgur.com/*",
+    "https://i.imgur.com/*"
   ],
   "background": {
     "scripts": [

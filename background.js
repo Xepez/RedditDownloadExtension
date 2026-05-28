@@ -14,56 +14,30 @@ async function loadFFmpeg() {
         globalThis.FFmpegWASM;
 
     if (!ffmpegLib) {
-        throw new Error(
-            'FFmpeg library not loaded'
-        );
+        throw new Error('FFmpeg library not loaded');
     }
 
-    ffmpeg =
-        ffmpegLib.FFmpeg
-            ? new ffmpegLib.FFmpeg()
-            : new ffmpegLib();
+    ffmpeg = ffmpegLib.FFmpeg ? new ffmpegLib.FFmpeg() : new ffmpegLib();
 
-    const coreURL =
-        browser.runtime.getURL(
-            'vendor/ffmpeg/ffmpeg-core.js'
-        );
-
-    const wasmURL =
-        browser.runtime.getURL(
-            'vendor/ffmpeg/ffmpeg-core.wasm'
-        );
+    const coreURL = browser.runtime.getURL('vendor/ffmpeg/ffmpeg-core.js');
+    const wasmURL = browser.runtime.getURL('vendor/ffmpeg/ffmpeg-core.wasm');
 
     // Verify files are reachable
     try {
-        const coreResp =
-            await fetch(coreURL);
+        const coreResp = await fetch(coreURL);
 
-        console.log(
-            'core.js status:',
-            coreResp.status
-        );
+        console.log('core.js status:', coreResp.status);
 
-        const wasmResp =
-            await fetch(wasmURL);
+        const wasmResp = await fetch(wasmURL);
 
-        console.log(
-            'wasm status:',
-            wasmResp.status
-        );
+        console.log('wasm status:', wasmResp.status);
     } catch (err) {
-        console.error(
-            'Failed fetching ffmpeg files',
-            err
-        );
+        console.error('Failed fetching ffmpeg files', err);
         throw err;
     }
 
     try {
-        const workerURL =
-            browser.runtime.getURL(
-                'vendor/ffmpeg/ffmpeg-core.js'
-            );
+        const workerURL = browser.runtime.getURL('vendor/ffmpeg/ffmpeg-core.js');
 
         await ffmpeg.load({
             coreURL,
@@ -71,9 +45,7 @@ async function loadFFmpeg() {
             workerURL
         });
 
-        console.log(
-            'FFmpeg loaded successfully'
-        );
+        console.log('FFmpeg loaded successfully');
 
         ffmpegLoaded = true;
 
@@ -145,15 +117,8 @@ async function mergeAndDownload(
 
         console.log('Writing files...');
 
-        await ffmpeg.writeFile(
-            'video.mp4',
-            videoData
-        );
-
-        await ffmpeg.writeFile(
-            'audio.mp4',
-            audioData
-        );
+        await ffmpeg.writeFile('video.mp4', videoData);
+        await ffmpeg.writeFile('audio.mp4', audioData);
 
         console.log('Merging...');
 
@@ -212,29 +177,18 @@ async function mergeAndDownload(
 // -----------------------------
 async function downloadRedgifs(pageUrl) {
     try {
-        console.log(
-            'Fetching Redgifs:',
-            pageUrl
-        );
+        console.log('Fetching Redgifs:', pageUrl);
 
         // Parse gif id
-        const match =
-            pageUrl.match(
-                /\/watch\/([^/?#]+)/i
-            );
+        const match = pageUrl.match(/\/watch\/([^/?#]+)/i);
 
         if (!match) {
-            throw new Error(
-                'Could not parse Redgifs id'
-            );
+            throw new Error('Could not parse Redgifs id');
         }
 
         const gifId = match[1];
 
-        console.log(
-            'Gif id:',
-            gifId
-        );
+        console.log('Gif id:', gifId);
 
         // ----------------------------------
         // Get guest token
@@ -248,26 +202,18 @@ async function downloadRedgifs(pageUrl) {
             );
 
         if (!authResponse.ok) {
-            throw new Error(
-                `Token request failed: HTTP ${authResponse.status}`
-            );
+            throw new Error(`Token request failed: HTTP ${authResponse.status}`);
         }
 
-        const authData =
-            await authResponse.json();
+        const authData = await authResponse.json();
 
-        const token =
-            authData?.token;
+        const token = authData?.token;
 
         if (!token) {
-            throw new Error(
-                'No Redgifs token returned'
-            );
+            throw new Error('No Redgifs token returned');
         }
 
-        console.log(
-            'Got temporary token'
-        );
+        console.log('Got temporary token');
 
         // ----------------------------------
         // Fetch gif metadata
@@ -284,41 +230,114 @@ async function downloadRedgifs(pageUrl) {
             );
 
         if (!response.ok) {
-            throw new Error(
-                `Gif request failed: HTTP ${response.status}`
-            );
+            throw new Error(`Gif request failed: HTTP ${response.status}`);
         }
 
-        const data =
-            await response.json();
+        const data = await response.json();
 
-        const urls =
-            data?.gif?.urls;
+        const urls = data?.gif?.urls;
 
-        const videoUrl =
-            urls?.hd ||
-            urls?.sd;
+        const videoUrl = urls?.hd || urls?.sd;
 
         if (!videoUrl) {
+            throw new Error('No downloadable video URL found');
+        }
+
+        console.log('Downloading:', videoUrl);
+
+        await browser.downloads.download({
+            url: videoUrl,
+            filename: `${gifId}.mp4`
+        });
+
+    } catch (err) {
+        console.error('Redgifs failed:', err);
+    }
+}
+
+// -----------------------------
+// Imgur Album Downloader
+// -----------------------------
+async function downloadImgurAlbum(albumUrl) {
+    try {
+        console.log('Fetching Imgur album:', albumUrl);
+
+        const response = await fetch(albumUrl);
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+        }
+
+        const html = await response.text();
+
+        console.log('Checking html: ', html);
+
+        // Find embedded Imgur state
+        const nextDataMatch = html.match(
+            /<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/s
+        );
+
+        if (!nextDataMatch) {
+            throw new Error('Could not find __NEXT_DATA__');
+        }
+
+        const data = JSON.parse(nextDataMatch[1]);
+
+        console.log('Checking data: ', data);
+
+        // Locate album media
+        const images =
+            data?.props?.pageProps?.media ||
+            data?.props?.pageProps?.album?.images ||
+            [];
+
+        console.log('Checking images: ', images);
+
+        const urls = [];
+
+        Object.values(images).forEach(
+            (item) => {
+                const url =
+                    item?.url ||
+                    item?.link;
+
+                console.log('Checking URLL: ', url);
+
+                if (url) {
+                    urls.push(url);
+                }
+            }
+        );
+
+        const uniqueUrls =
+            [...new Set(urls)];
+
+        if (
+            !uniqueUrls.length
+        ) {
             throw new Error(
-                'No downloadable video URL found'
+                'No album images found'
             );
         }
 
         console.log(
-            'Downloading:',
-            videoUrl
+            `Found ${uniqueUrls.length} images`
         );
 
-        await browser.downloads.download({
-            url: videoUrl,
-            filename:
-                `${gifId}.mp4`
-        });
+        for (const url of uniqueUrls) {
+            console.log(
+                'Downloading:',
+                url
+            );
+
+            await browser.downloads.download({
+                url
+            });
+        }
 
     } catch (err) {
         console.error(
-            'Redgifs failed:',
+            'Imgur album failed:',
             err
         );
     }
@@ -329,12 +348,14 @@ async function downloadRedgifs(pageUrl) {
 // -----------------------------
 browser.runtime.onMessage.addListener(
     (message) => {
+        console.log('MESSAGE RECEIVED', message);
+
         return handleMessage(message);
     }
 );
 
 async function handleMessage(message) {
-    // Regular download
+    // Regular Download
     if (message.action === 'download') {
         const url = message.url;
 
@@ -350,7 +371,7 @@ async function handleMessage(message) {
         });
     }
 
-    // Reddit video merge
+    // Reddit Video Merge
     if (message.action === 'downloadVideoWithAudio') {
         try {
             await mergeAndDownload(
@@ -358,15 +379,17 @@ async function handleMessage(message) {
                 message.audioCandidates
             );
         } catch (err) {
-            console.error(
-                'Merge failed:',
-                err
-            );
+            console.error('Merge failed:',);
         }
     }
 
-    // Red gif download
+    // Red Gif Download
     if (message.action === 'downloadRedgifs') {
         downloadRedgifs(message.pageUrl);
+    }
+
+    // Imgur Ablum Downloader
+    if (message.action === 'downloadImgurAlbum') {
+        downloadImgurAlbum(message.albumUrl);
     }
 }

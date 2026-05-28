@@ -106,8 +106,12 @@ function addDownloadButtonsToComment(comment) {
 function addDownloadButtonToGallery(post) {
     if (post.querySelector('.my-gallery-download-btn')) return;
 
-    const titleLink = post.querySelector('a.title');
-    if (!titleLink?.href || !titleLink?.href.includes("gallery")) return;
+    const titleLink = post.querySelector("a.title");
+    if (!titleLink?.href 
+        || !titleLink?.href.includes("gallery")) 
+    {
+        return;
+    }
 
     const postUrl = titleLink.href;
 
@@ -357,12 +361,93 @@ function addDownloadButtonToRedgifs(post) {
 }
 
 // -----------------------------
+// Handle Imgur albums in text posts/comments
+// -----------------------------
+function addDownloadButtonsToImgurAlbums(
+    container
+) {
+    const links =
+        container.querySelectorAll(
+            'a[href]'
+        );
+
+    console.log(
+        'Imgur scan:',
+        container,
+        links.length
+    );
+
+    links.forEach((link) => {
+        if (
+            link.nextElementSibling?.classList.contains(
+                'my-imgur-download-btn'
+            )
+        ) {
+            return;
+        }
+
+        const href =
+            link.href;
+
+        const isImgurAlbum =
+            /imgur\.com\/(a|gallery)\//i.test(
+                href
+            );
+
+        if (!isImgurAlbum) {
+            return;
+        }
+
+        console.log(
+            'Found Imgur album:',
+            href
+        );
+
+        const btn =
+            document.createElement(
+                'button'
+            );
+
+        btn.innerText =
+            'Download Album';
+
+        btn.className =
+            'my-imgur-download-btn';
+
+        btn.style.marginLeft =
+            '6px';
+
+        btn.style.fontSize =
+            '11px';
+
+        btn.style.cursor =
+            'pointer';
+
+        btn.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+
+            browser.runtime.sendMessage({
+                action:
+                    'downloadImgurAlbum',
+                albumUrl: href
+            });
+        };
+
+        link.insertAdjacentElement(
+            'afterend',
+            btn
+        );
+    });
+}
+
+// -----------------------------
 // Process everything
 // -----------------------------
 function processPage() {
     // Posts
     const posts = document.querySelectorAll(
-        'div.thing'
+        "div.thing"
     );
     posts.forEach((post) => {
         addDownloadButtonToPost(post);
@@ -373,9 +458,20 @@ function processPage() {
 
     // Comments
     const comments = document.querySelectorAll(
-        '.comment'
+        ".comment"
     );
-    comments.forEach(addDownloadButtonsToComment);
+    comments.forEach((post) => {
+        addDownloadButtonsToComment(post);
+        addDownloadButtonsToImgurAlbums(post);
+    });
+
+    // Self Text Posts
+    const selfText = document.querySelectorAll(
+        '.usertext-body, .md'
+    );
+    selfText.forEach(
+        addDownloadButtonsToImgurAlbums
+    );
 }
 
 // -----------------------------
